@@ -1,0 +1,133 @@
+# dq-subagent PRD
+
+Author: Claude (Opus 4.7)
+Date: 2026-05-23
+Status: Loops 1-4 complete (committed). Loop 5 pending (plugin + CI + demo).
+
+## Problem
+
+opensubagents-ai produces a steady stream of structured artifacts — rubrics,
+outcomes, evals, tests, prompts, research prompts, briefs, tasks. Every
+artifact is graded ad-hoc, every grading inconsistent. New Claude sessions
+re-derive what "good" looks like from scratch, drifting from Anthropic's
+published guidance and the operator's hard rules.
+
+We need:
+1. A library of skills that teach Claude how to write each artifact type.
+2. A library of rubrics that grade each artifact type deterministically.
+3. A subagent that runs the rubric against any artifact and emits PASS/FAIL.
+4. A plugin (slash commands + MCP wiring) that makes all of this one tap.
+
+## Goals
+
+- 8 skills, one per artifact type: dq-rubric, dq-outcome, dq-eval, dq-test,
+  dq-prompt, dq-research-prompt, dq-brief, dq-task.
+- 8 matching rubrics in opensubagents-ai/agents-rubrics/rubrics/.
+- 1 subagent (TS, then Python ports for sandbox-mode) implementing
+  Anthropic's Five Rings progression: static → agentic → multi-tool/parallel
+  → error-handling → SDK-abstracted.
+- 1 plugin with 10 slash commands wiring the skills + grader into Claude
+  Code.
+- All artifacts self-graded ≥4/5 on every criterion of their own rubric.
+
+## Non-goals
+
+- Not building yet another LLM eval harness — we use Anthropic's published
+  define_outcome pattern and Files API.
+- Not rewriting upstream Anthropic skills — we add net-new ones for the
+  artifact types Anthropic doesn't publish skills for.
+- Not autonomously editing artifacts — the subagent grades and reports; the
+  generator agent (separate concern) writes.
+- Not Loop 5 ports in this PRD — the TS Ring 2-5 ports + the plugin are
+  Loop 5 deliverables.
+
+## Cadence: 3-atomic-outcomes-per-loop
+
+Per operator instruction: 3 atomic outcomes in linear order, retro between
+triplets, then 3 more. Mirrors Anthropic's "Five Rings" tutorial where each
+ring is runnable and adds exactly one concept.
+
+### Loop 1 (Ring 1) — DONE
+
+- O1.1: dq-rubric skill + dq-rubric meta-rubric.
+- O1.2: dq-outcome skill + dq-outcome rubric.
+- O1.3: Ring-1 subagent (TS, single-shot, static grader).
+
+Retro: caught real defect (citation regex required `https://` prefix).
+Both rubrics graded 35/35 against meta-rubric.
+
+### Loop 2 (Ring 2) — DONE
+
+- O2.1: Ring-2 subagent (agentic loop, LLM-graded C6, recursive C7).
+- O2.2: dq-eval skill + dq-eval rubric.
+- O2.3: dq-test skill + dq-test rubric.
+
+Retro: caught two real defects (relative-path citations + missing
+self-application footers). Both fixed; regex widened to accept
+https?://|inference|<repo>/<path>.md.
+
+### Loop 3 (Ring 3) — DONE
+
+- O3.1: Ring-3 subagent (parallel multi-artifact grading, SKILL.md grader,
+  lib/static_grader.py refactor, rubric template).
+- O3.2: dq-prompt skill + dq-prompt rubric.
+- O3.3: dq-research-prompt skill + dq-research-prompt rubric.
+
+Retro: zero defects (template + retro discipline closed all failure modes).
+
+### Loop 4 (Ring 4) — DONE
+
+- O4.1: Ring-4 subagent (error handling, missing-file → ERROR, S5
+  filesystem check).
+- O4.2: dq-brief skill + dq-brief rubric.
+- O4.3: dq-task skill + dq-task rubric.
+
+Retro: zero defects. Final session-grader run: 16/16 PASS across all 8
+skills + 8 rubrics. Error handling stress-tested (missing file returns
+ERROR verdict, doesn't throw).
+
+### Loop 5 (Ring 5) — PENDING
+
+- O5.1: Ring-5 TS port using @anthropic-ai/sdk Tool Runner API. Collapses
+  the manual agentic loop into `client.beta.messages.tool_runner(...)
+  .until_done()`.
+- O5.2: Plugin assembly. `.claude-plugin/plugin.json` + `.mcp.json` + 10
+  slash-command markdown files under `playbooks/commands/dq-*.md`. CI lint
+  workflow at `infra/.github/workflows/dq-lint.yml`.
+- O5.3: End-to-end demo against 3 existing org artifacts (one rubric, one
+  outcome, one task). Output as a single playbook at
+  `playbooks/demos/dq-demo-2026-05-23.md`.
+
+## Success metric
+
+The dq-subagent grades every artifact in opensubagents-ai/agents-rubrics/
++ opensubagents-ai/skills/ as PASS, AND a fresh Claude Code session can
+invoke `/dq:grade <path>` and receive a PASS/NEEDS_WORK verdict in <30
+seconds.
+
+## Settings
+
+- max_iterations: 3 (default per Anthropic's define_outcome docs).
+- generator model: claude-opus-4-7
+- grader model: claude-sonnet-4-6 (separate context window per Anthropic's
+  define_outcome guidance)
+- artifact_path: opensubagents-ai/skills/skills/dq-*/  +
+  opensubagents-ai/agents-rubrics/rubrics/dq-*.md
+- subagent code: opensubagents-ai/agent-sdk/src/agents/dq-quality-gate.ts
+- sandbox ports: opensubagents-ai/agent-sdk/sandbox/dq_quality_gate*.py
+
+## Canonical citations
+
+- https://platform.claude.com/docs/en/agents-and-tools/tool-use/build-a-tool-using-agent
+  (Five Rings tutorial — the structural model)
+- https://platform.claude.com/docs/en/test-and-evaluate/develop-tests
+  (SMAR criteria; grader priority code > human > LLM; volume over quality)
+- https://platform.claude.com/docs/en/managed-agents/define-outcomes
+  (max_iterations default 3 max 20; separate context window for grader)
+- https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader
+  (description vs rubric separation)
+- https://anthropic.com/engineering/multi-agent-research-system
+  (Opus lead + Sonnet subagents; 90.2% improvement)
+- https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+- https://platform.claude.com/docs/en/build-with-claude/citations
+- https://platform.claude.com/docs/en/build-with-claude/task-budgets
