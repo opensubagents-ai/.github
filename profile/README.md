@@ -8,6 +8,7 @@ Part of the [`subagentmcp`](https://github.com/enterprises/subagentmcp) enterpri
 
 | Layer | Repos |
 |---|---|
+| **Org profile** | [`.github`](../../.github) — you're reading the file rendered from here |
 | **SDK** | [`sdk`](../../sdk) · [`agent-sdk`](../../agent-sdk) · [`cli`](../../cli) |
 | **Remote MCP servers** | [`mcp-monitoring`](../../mcp-monitoring) · [`mcp-business-ops`](../../mcp-business-ops) · [`mcp-knowledge`](../../mcp-knowledge) |
 | **Channels** | [`channels-webhook-router`](../../channels-webhook-router) · [`channels-monitoring`](../../channels-monitoring) |
@@ -18,7 +19,7 @@ Part of the [`subagentmcp`](https://github.com/enterprises/subagentmcp) enterpri
 
 ## How to work here
 
-Clone the repo you care about, then start a Claude Code session — `CLAUDE.md` (in this repo's root) is auto-loaded into every session in this org and orients Claude to our conventions.
+Clone the repo you care about, then start a Claude Code session — `CLAUDE.md` (in the `.github` repo root) is auto-loaded into every session in this org and orients Claude to our conventions.
 
 ```bash
 git clone git@github.com:opensubagents-ai/<repo>.git
