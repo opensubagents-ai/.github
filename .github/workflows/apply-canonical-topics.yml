@@ -1,75 +1,41 @@
+# trigger run (no-op edit)
 name: Apply canonical topics
-
-# Self-bootstrap: applies the canonical opensubagents-ai topic set to THIS repo
-# by calling PUT /repos/{owner}/{repo}/topics from inside a workflow run,
-# using the runner-provisioned GITHUB_TOKEN. No external API keys. No PAT.
-#
-# Proof-of-execution: writes .github/topics-applied.json back to the repo so
-# verifiers can confirm by fetching that file via the Contents API.
-
 on:
   push:
-    paths:
-      - .github/workflows/apply-canonical-topics.yml
+    paths: [.github/workflows/apply-canonical-topics.yml]
   workflow_dispatch:
-
-permissions:
-  administration: write
-  contents: write
-
+permissions: { administration: write, contents: write }
 jobs:
   apply:
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Replace repository topics
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with: { token: "${{ secrets.GITHUB_TOKEN }}" }
+      - name: Apply topics
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
           set -euo pipefail
-          gh api -X PUT \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
+          gh api -X PUT -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/${{ github.repository }}/topics \
             -f "names[]=org-profile" -f "names[]=claude-code" -f "names[]=opensubagents-ai"
-
-      - name: Verify topics now match canonical
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
           set -euo pipefail
           actual=$(gh api /repos/${{ github.repository }}/topics --jq '.names | sort | join(",")')
-          expected="claude-code,opensubagents-ai,org-profile"
-          [ "$actual" = "$expected" ] || { echo "MISMATCH: $actual"; exit 1; }
-
-      - name: Write proof-of-execution
+          [ "$actual" = "claude-code,opensubagents-ai,org-profile" ] || { echo "MISMATCH: $actual"; exit 1; }
+      - name: Write proof
         run: |
-          set -euo pipefail
           mkdir -p .github
           cat > .github/topics-applied.json <<JSON
-          {
-            "repo": "${{ github.repository }}",
-            "applied_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-            "run_id": "${{ github.run_id }}",
-            "topics": ["claude-code", "opensubagents-ai", "org-profile"]
-          }
+          { "repo": "${{ github.repository }}", "applied_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "run_id": "${{ github.run_id }}", "topics": ["claude-code", "opensubagents-ai", "org-profile"] }
           JSON
-
-      - name: Commit proof file
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Commit proof
+        env: { GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add .github/topics-applied.json
-          if git diff --cached --quiet; then
-            echo "no changes"
-          else
-            git commit -m "ci: topics applied (proof of execution)"
-            git push
-          fi
+          if git diff --cached --quiet; then echo nochg; else git commit -m "ci: topics applied"; git push; fi
