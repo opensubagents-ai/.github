@@ -1,209 +1,133 @@
-<PRD>
-# opensubagents-ai — 7-Workstream Initiative Master PRD
+# dq-subagent PRD
 
-## Introduction
+Author: Claude (Opus 4.7)
+Date: 2026-05-23
+Status: Loops 1-4 complete (committed). Loop 5 pending (plugin + CI + demo).
 
-opensubagents-ai is moving from a published architecture report and a 22-commit / 17-repo plan into execution. This master PRD covers all 7 workstreams, the cross-cutting PM substrate, the subprocessor whitelist enforcement, and the upstream-tracking discipline. It is the entry point for `task-master parse-prd`; each workstream has a child PRD under `.taskmaster/docs/prd-<workstream>.txt`.
+## Problem
 
-This PRD is the result of the research-grounded decomposition performed during the session of 2026-05-24 (chat session `claude.ai/chat/aaa073b5-2fb6-47b4-b40b-00a2e3cfc1d0`), which surfaced the canonical milestone capture at `skills/skills/product-engineering/examples/agent-to-agent-orchestration-aaa073b5.md`.
+opensubagents-ai produces a steady stream of structured artifacts — rubrics,
+outcomes, evals, tests, prompts, research prompts, briefs, tasks. Every
+artifact is graded ad-hoc, every grading inconsistent. New Claude sessions
+re-derive what "good" looks like from scratch, drifting from Anthropic's
+published guidance and the operator's hard rules.
 
-## Product Overview
-
-opensubagents-ai is an open-by-default organization of polyrepo Claude-Code-native software. Each repo has a single tightly-scoped purpose. The 20 repos are organized in three concentric rings:
-
-- **Inner ring (5 repos):** `sdk`, `agent-sdk`, `cli`, `skills`, `playbooks` — primitives consumed everywhere
-- **Middle ring (8 repos):** `mcp-monitoring`, `mcp-business-ops`, `mcp-knowledge`, `channels-webhook-router`, `channels-monitoring`, `agents-orchestrator`, `agents-rubrics`, `infra` — capability surfaces
-- **Outer ring (7 repos):** `audit-log`, `trace-collector`, `claude-chrome-sidecar`, `claude-chrome-evaluator`, `standup-agent`, `standup-evaluator`, plus the two new private marketplaces `subagent-plugins` and `coworker-plugins` — observability + runtime + plugin catalogs
-
-This PRD does NOT create new repos. Every workstream fits one of the 20 existing repos.
+We need:
+1. A library of skills that teach Claude how to write each artifact type.
+2. A library of rubrics that grade each artifact type deterministically.
+3. A subagent that runs the rubric against any artifact and emits PASS/FAIL.
+4. A plugin (slash commands + MCP wiring) that makes all of this one tap.
 
 ## Goals
 
-1. Stand up Task Master AI (standard mode, Claude Code models) as the PRD-to-tasks layer.
-2. Mirror every Task Master task into Jira via Rovo MCP; mirror every Jira story into GitHub Project v2.
-3. Adopt `anthropics/claude-agent-sdk-demos/research-agent` and `email-agent` verbatim with biweekly upstream sync.
-4. Stand up the design pipeline (cmark-gfm + unified/rehype + @vscode/html-languageservice) mirroring `anthropics/knowledge-work-plugins/design`.
-5. Stand up the data plane (Docker Business + AlloyDB Omni 16.8.0 + DragonflyDB latest + Docker MCP profiles).
-6. Wire Cloudflare GraphQL Analytics through `mcp-monitoring` using `graphql.mcp.cloudflare.com`.
-7. Deploy `opensubagents.com` (marketing) + `outcomesdk.com` (developer surface) on Cloudflare with security headers and email auth.
-8. Capture $100K+ in stacked startup credits via the email-agent and the operator's promo-credits routine.
+- 8 skills, one per artifact type: dq-rubric, dq-outcome, dq-eval, dq-test,
+  dq-prompt, dq-research-prompt, dq-brief, dq-task.
+- 8 matching rubrics in opensubagents-ai/agents-rubrics/rubrics/.
+- 1 subagent (TS, then Python ports for sandbox-mode) implementing
+  Anthropic's Five Rings progression: static → agentic → multi-tool/parallel
+  → error-handling → SDK-abstracted.
+- 1 plugin with 10 slash commands wiring the skills + grader into Claude
+  Code.
+- All artifacts self-graded ≥4/5 on every criterion of their own rubric.
 
-## Non-Goals
+## Non-goals
 
-- Do NOT create new repos. Every workstream fits one of the 20 existing repos.
-- Do NOT roll custom MCP protocol code — use `modelcontextprotocol/` SDKs.
-- Do NOT bypass the subprocessor whitelist. Non-whitelist vendors require an ADR.
-- Do NOT translate Python upstream demos to TypeScript — vendor as-is.
-- Do NOT block on credit applications. The engineering work proceeds whether or not credits land.
+- Not building yet another LLM eval harness — we use Anthropic's published
+  define_outcome pattern and Files API.
+- Not rewriting upstream Anthropic skills — we add net-new ones for the
+  artifact types Anthropic doesn't publish skills for.
+- Not autonomously editing artifacts — the subagent grades and reports; the
+  generator agent (separate concern) writes.
+- Not Loop 5 ports in this PRD — the TS Ring 2-5 ports + the plugin are
+  Loop 5 deliverables.
 
-## Target Audience
+## Cadence: 3-atomic-outcomes-per-loop
 
-- **Primary user:** the operator (single human-in-the-loop owner; gh user `zhoukalex`).
-- **Secondary users:** Claude Code sessions consuming PRDs + tasks via MCP.
-- **Tertiary users:** engineering ICs consuming the GitHub Projects board + Jira.
-- **Indirect users:** the `marketing-agent` (an AgentDefinition, not a person) consuming the promo-credits playbook.
+Per operator instruction: 3 atomic outcomes in linear order, retro between
+triplets, then 3 more. Mirrors Anthropic's "Five Rings" tutorial where each
+ring is runnable and adds exactly one concept.
 
-## Features and Requirements
+### Loop 1 (Ring 1) — DONE
 
-### F1. PM substrate (WS1, OPM1)
+- O1.1: dq-rubric skill + dq-rubric meta-rubric.
+- O1.2: dq-outcome skill + dq-outcome rubric.
+- O1.3: Ring-1 subagent (TS, single-shot, static grader).
 
-- `.taskmaster/` directory present in `.github` with this master PRD + 7 workstream PRDs
-- Task Master MCP installed in org-wide `.mcp.json` with `TASK_MASTER_TOOLS="standard"` (15 tools, ~10K tokens)
-- Claude Code provider configured (`claude-code/opus` main + `claude-code/sonnet` research/fallback)
-- Atlassian Rovo MCP enabled; Jira project `OSA` created with epics `OSA-WS1` through `OSA-WS7`
-- GitHub Project v2 `opensubagents-ai-2026Q3` with columns, custom fields, and automation
-- `infra/scripts/tm-jira-sync.ts` sync worker mapping Task Master JSON → Jira via Rovo MCP
-- ADR 0006 (Atlassian as PM substrate) accepted before Rovo MCP writes any data
+Retro: caught real defect (citation regex required `https://` prefix).
+Both rubrics graded 35/35 against meta-rubric.
 
-### F2. Research-agent adoption (WS2, ORES1)
+### Loop 2 (Ring 2) — DONE
 
-- Vendor `anthropics/claude-agent-sdk-demos/research-agent` as a Python subtree at `agent-sdk/examples/research-agent/`
-- Configure it to consume the org's `mcp-knowledge` and `mcp-business-ops` MCPs
-- Biweekly upstream sync via a GitHub Action that opens `chore: sync from upstream` PRs
-- Document the Python-not-TypeScript exception in `agent-sdk/examples/research-agent/CLAUDE.md`
+- O2.1: Ring-2 subagent (agentic loop, LLM-graded C6, recursive C7).
+- O2.2: dq-eval skill + dq-eval rubric.
+- O2.3: dq-test skill + dq-test rubric.
 
-### F3. Email-agent for promo credits (WS3, OMKT1)
+Retro: caught two real defects (relative-path citations + missing
+self-application footers). Both fixed; regex widened to accept
+https?://|inference|<repo>/<path>.md.
 
-- Vendor `anthropics/claude-agent-sdk-demos/email-agent` as a TypeScript subtree at `agents-orchestrator/examples/email-agent/`
-- Author `agents-orchestrator/agents/marketing.agent.json` (AgentDefinition spec)
-- Author `playbooks/routines/promo-credits.md` enumerating every target program with eligibility + URL + estimated value
-- Configure the upstream's IMAP for Gmail (X-GM-RAW search syntax)
-- Critical safety constraint: every email is `create_draft`, never `send`. Human-approve before send.
-- SQLite `application_status` schema for tracking submissions
-- Target stack of $100K+ across Anthropic Startups ($25K), AWS Activate ($1K–$100K), Microsoft Founders Hub ($1K–$150K), GCP Start/Scale/AI Track ($2K–$350K), Cloudflare ($5K–$250K), MongoDB ($5K), Twilio Searchlight ($7.5K–$12.5K), Stripe Atlas/AWS ($5K bundled), SendGrid ($5K)
+### Loop 3 (Ring 3) — DONE
 
-### F4. Design pipeline (WS4, ODSG1)
+- O3.1: Ring-3 subagent (parallel multi-artifact grading, SKILL.md grader,
+  lib/static_grader.py refactor, rubric template).
+- O3.2: dq-prompt skill + dq-prompt rubric.
+- O3.3: dq-research-prompt skill + dq-research-prompt rubric.
 
-- `skills/skills/design/SKILL.md` mirroring the structure of `anthropics/knowledge-work-plugins/design`
-- `agent-sdk/src/design-renderer/` Node module wrapping cmark-gfm via WASM + `unified` + `remark-gfm` + `rehype`
-- `@vscode/html-languageservice` `doValidation` integration
-- CLI: `render-md input.md --out output.html`
-- Goldens for every existing `skills/*/SKILL.md` checked into the repo
+Retro: zero defects (template + retro discipline closed all failure modes).
 
-### F5. Data infrastructure (WS5, ODAT1)
+### Loop 4 (Ring 4) — DONE
 
-- `infra/docker-compose.yml` baseline with services for: AlloyDB Omni 16.8.0 (audit-log + trace-collector), DragonflyDB latest (cache + queue), `mcp-knowledge`, `mcp-business-ops`
-- Docker Business tier subscription (ADR 0005)
-- AlloyDB Omni image: `google/alloydbomni:16.8.0`. Columnar engine enabled (`google_columnar_engine.enabled=on`). `/dev/shm` mounted.
-- DragonflyDB image: `docker.dragonflydb.io/dragonflydb/dragonfly:latest` with `--ulimit memlock=-1`
-- Docker MCP Toolkit profiles for `mcp-knowledge` and `mcp-business-ops`; profiles pushed to OCI registry
-- ADR 0003 (AlloyDB Omni over vanilla Postgres) accepted before audit-log + trace-collector migrations land
-- Integration test `audit-log/tests/dragonfly_compat.test.ts` covering EVAL/Lua + SCAN cursor edge cases before any Redis-to-Dragonfly swap in production-adjacent paths
+- O4.1: Ring-4 subagent (error handling, missing-file → ERROR, S5
+  filesystem check).
+- O4.2: dq-brief skill + dq-brief rubric.
+- O4.3: dq-task skill + dq-task rubric.
 
-### F6. Cloudflare GraphQL Analytics (WS6, OCF1)
+Retro: zero defects. Final session-grader run: 16/16 PASS across all 8
+skills + 8 rubrics. Error handling stress-tested (missing file returns
+ERROR verdict, doesn't throw).
 
-- Cloudflare API token with `Analytics: Read` scope on both zones (`opensubagents.com` + `outcomesdk.com`)
-- `graphql.mcp.cloudflare.com` installed via `mcp-remote` in `.github/.mcp.json`
-- `mcp-monitoring/src/integrations/cloudflare-graphql/client.ts` calling `graphql_query`
-- Baseline queries for the 4 documented datasets: `httpRequests1mGroups`, `httpRequests1hGroups`, `firewallEventsAdaptiveGroups`, `httpRequests` (raw, for bot vs human via `trustedClientCategory`)
-- Pipe results into `trace-collector` (WS5 dependency)
-- Anomaly alerts (bot surge, 5xx rate spike) wired through the existing `mcp-monitoring` alert path
+### Loop 5 (Ring 5) — PENDING
 
-### F7. Two-domain Cloudflare setup (WS7, ODOM1)
+- O5.1: Ring-5 TS port using @anthropic-ai/sdk Tool Runner API. Collapses
+  the manual agentic loop into `client.beta.messages.tool_runner(...)
+  .until_done()`.
+- O5.2: Plugin assembly. `.claude-plugin/plugin.json` + `.mcp.json` + 10
+  slash-command markdown files under `playbooks/commands/dq-*.md`. CI lint
+  workflow at `infra/.github/workflows/dq-lint.yml`.
+- O5.3: End-to-end demo against 3 existing org artifacts (one rubric, one
+  outcome, one task). Output as a single playbook at
+  `playbooks/demos/dq-demo-2026-05-23.md`.
 
-- DNS zones provisioned at Cloudflare for `opensubagents.com` + `outcomesdk.com`
-- SSL/TLS Full (strict); HSTS preload-eligible (`max-age=31536000; includeSubDomains; preload`)
-- Security-headers Worker injecting CSP, X-Frame-Options, Referrer-Policy on every response
-- MX + SPF + DKIM + DMARC records (DMARC at `p=quarantine` minimum)
-- Cloudflare Pages: marketing site at `opensubagents.com`; docs at `outcomesdk.com`
-- Wrangler-managed config in `infra/cloudflare/`
-- ADR 0004 (two-domain Cloudflare setup) accepted before zones go live
-- ADR 0010 (Mintlify) only if Mintlify is adopted over Cloudflare Pages baseline; ADR 0011 (Webflow) only if Webflow is adopted
+## Success metric
 
-## User Stories and Acceptance Criteria
+The dq-subagent grades every artifact in opensubagents-ai/agents-rubrics/
++ opensubagents-ai/skills/ as PASS, AND a fresh Claude Code session can
+invoke `/dq:grade <path>` and receive a PASS/NEEDS_WORK verdict in <30
+seconds.
 
-### ST-101: Operator parses workstream PRDs
+## Settings
 
-As the operator, I want to run `task-master parse-prd` on each workstream PRD so that each workstream has a generated task list.
+- max_iterations: 3 (default per Anthropic's define_outcome docs).
+- generator model: claude-opus-4-7
+- grader model: claude-sonnet-4-6 (separate context window per Anthropic's
+  define_outcome guidance)
+- artifact_path: opensubagents-ai/skills/skills/dq-*/  +
+  opensubagents-ai/agents-rubrics/rubrics/dq-*.md
+- subagent code: opensubagents-ai/agent-sdk/src/agents/dq-quality-gate.ts
+- sandbox ports: opensubagents-ai/agent-sdk/sandbox/dq_quality_gate*.py
 
-**Acceptance:** all 7 workstream PRDs are parsed; each emits a populated `.taskmaster/tasks/tasks.json` per tag; `task-master list --tag=<workstream>` shows tasks for each.
+## Canonical citations
 
-### ST-102: Operator (or desktop-agent) mirrors tasks to Jira
-
-As the operator or desktop-agent, I want every Task Master task to have a corresponding Jira story so that the team can see the work in Jira.
-
-**Acceptance:** `infra/scripts/tm-jira-sync.ts` runs on `.taskmaster/tasks/**` changes; every task has a populated `jira_key` field within 60s of creation; drift between Task Master `status` and Jira `status` is ≤ 5 minutes.
-
-### ST-103: Operator submits Anthropic Startups credit application
-
-As the operator, I want a drafted Anthropic Startups application via the email-agent so that I can review and send it.
-
-**Acceptance:** `marketing-agent` produces a draft in Gmail Drafts with subject, recipient, and body; SQLite `application_status` row exists with status `drafted`; operator reviews and either approves (status → `sent`) or rejects (status → `rejected`).
-
-### ST-104: A WS5 PR introducing DragonflyDB cannot merge without dragonfly_compat.test.ts passing
-
-As a reviewer, I want CI to fail the merge if Redis compatibility tests fail so that we never accidentally regress on EVAL or SCAN semantics.
-
-**Acceptance:** `audit-log/tests/dragonfly_compat.test.ts` is a required check in branch protection on `audit-log` and `trace-collector`.
-
-### ST-105: A WS6 commit lands cloudflare-graphql queries cleanly
-
-As an engineering IC, I want the CF GraphQL queries to be valid against the schema so that I can run them.
-
-**Acceptance:** baseline queries (one per documented dataset) live in `mcp-monitoring/src/integrations/cloudflare-graphql/queries/`; CI runs `graphql_schema_search` against each and confirms the response types match.
-
-### ST-106: Non-whitelist vendor adoption is blocked without ADR
-
-As the operator, I want PRs that introduce non-whitelist vendors to be blocked until the ADR is accepted so that we never accidentally onboard a vendor without review.
-
-**Acceptance:** CI on every repo checks new files in `infra/docs/decisions/` for vendor mentions; PRs that add `package.json` deps or `docker-compose.yml` services pointing to non-whitelist vendors are flagged.
-
-## Technical Requirements / Stack
-
-- **Language:** TypeScript everywhere except `agent-sdk/examples/research-agent/` (Python; documented exception via per-repo `CLAUDE.md`)
-- **Package manager:** `pnpm` (consistency across the org)
-- **Runtime:** Node 22 LTS on local + CI; Docker images use Node 22 on DHI base
-- **MCP SDKs:** `modelcontextprotocol/typescript-sdk` and `modelcontextprotocol/python-sdk` only
-- **CI:** GitHub Actions; workflow files cannot land via desktop App connector (Workflows:write blocked) — route via `/handoff` from the `handoff-to-sidecar` plugin
-- **Commit format:** Conventional Commits with outcome-tag suffix per `.github/CONVENTIONS.md`
-- **Merge strategy:** Squash-merge; delete branch on merge; direct-to-main only for `claude-chrome-sidecar/{tasks,sessions,memory}/`
-- **License:** Apache-2.0 for org-original code; MIT preserved for vendored upstreams; commercial vendors per their license
-
-## Design and User Interface
-
-- **Marketing site (opensubagents.com):** static HTML/CSS baseline via Cloudflare Pages; design system mirrors the `anthropics/knowledge-work-plugins/design` plugin's structure (7 skills); brand baseline pulled from `agentknowledgeworkers.com` via headless browser (Playwright or Cloudflare Browser Rendering MCP) once.
-- **Developer surface (outcomesdk.com):** docs site via Cloudflare Pages by default; Mintlify only with ADR 0010.
-- **PM dashboards:** GitHub Project v2 board `opensubagents-ai-2026Q3` (primary); Jira `OSA` dashboards (secondary).
-- **No custom CMS:** prose lives in markdown in repos; the design renderer compiles markdown to brand-consistent HTML.
-
-## Cross-cutting infra
-
-- modelcontextprotocol/ SDKs for everything MCP-flavored
-- Conventional Commits + squash-merge via CODEOWNERS + branch protection
-- All upstream-vendored code lives behind a `chore: sync from upstream` workflow on biweekly cron
-- Subprocessor whitelist enforced via `.github/SUBPROCESSORS.md` + ADR review
-
-## Dependency graph
-
-```
-WS1 ──┬───► WS2 (consumes mcp-knowledge from WS5)
-      ├───► WS3 (PRD substrate)
-      ├───► WS4 (PRD substrate)
-      ├───► WS5 (PRD substrate)
-      ├───► WS6 (PRD substrate)
-      └───► WS7 (PRD substrate)
-
-WS5 ──┬───► WS2 (mcp-knowledge consumer)
-      └───► WS6 (trace-collector sink)
-
-WS7 ──┬───► WS6 (CF zones to query)
-      └───► WS3 (sender domain for outbound email)
-
-WS4 ──────► WS7 (marketing-site rendering pipeline)
-
-WS3 ──────► [budget for WS5 + WS7] (credits fund infrastructure)
-```
-
-## Milestones
-
-- **M1:** All 7 PRDs in `.taskmaster/docs/` and `parse-prd` run successfully
-- **M2:** Jira epics + GitHub Project board live with all 7 workstreams represented
-- **M3:** ADRs 0003 (AlloyDB), 0004 (domain-split), 0005 (Docker Business), 0006 (Atlassian), 0007 (Anthropic), 0008 (email provider) merged
-- **M4:** First credit approved (typically Anthropic Startups $25K, lowest-friction)
-- **M5:** Data plane green; CF GraphQL feeding `trace-collector`
-- **M6:** Both domains live with A+ security headers and 10/10 mail-tester scores
-- **M7:** $100K+ stacked credits booked
-
-Milestones are unordered by date; they're acceptance gates. Multiple can be in flight simultaneously.
-
-</PRD>
+- https://platform.claude.com/docs/en/agents-and-tools/tool-use/build-a-tool-using-agent
+  (Five Rings tutorial — the structural model)
+- https://platform.claude.com/docs/en/test-and-evaluate/develop-tests
+  (SMAR criteria; grader priority code > human > LLM; volume over quality)
+- https://platform.claude.com/docs/en/managed-agents/define-outcomes
+  (max_iterations default 3 max 20; separate context window for grader)
+- https://platform.claude.com/cookbook/managed-agents-cma-verify-with-outcome-grader
+  (description vs rubric separation)
+- https://anthropic.com/engineering/multi-agent-research-system
+  (Opus lead + Sonnet subagents; 90.2% improvement)
+- https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices
+- https://platform.claude.com/docs/en/build-with-claude/citations
+- https://platform.claude.com/docs/en/build-with-claude/task-budgets
