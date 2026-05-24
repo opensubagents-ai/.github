@@ -29,7 +29,7 @@ This PRD does NOT create new repos. Every workstream fits one of the 20 existing
 ## Goals
 
 1. Stand up Task Master AI (standard mode, Claude Code models) as the PRD-to-tasks layer.
-2. Mirror every Task Master task into Jira via Rovo MCP; mirror every Jira story into GitHub Project v2.
+2. Mirror every Task Master task into Jira project `OP` via Rovo MCP; mirror every Jira story into GitHub Project v2.
 3. Adopt `anthropics/claude-agent-sdk-demos/research-agent` and `email-agent` verbatim with biweekly upstream sync.
 4. Stand up the design pipeline (cmark-gfm + unified/rehype + @vscode/html-languageservice) mirroring `anthropics/knowledge-work-plugins/design`.
 5. Stand up the data plane (Docker Business + AlloyDB Omni 16.8.0 + DragonflyDB latest + Docker MCP profiles).
@@ -45,10 +45,11 @@ This PRD does NOT create new repos. Every workstream fits one of the 20 existing
 - Do NOT translate Python upstream demos to TypeScript — vendor as-is.
 - Do NOT block on credit applications. The engineering work proceeds whether or not credits land.
 - Do NOT interfere with the dq-subagent work (separate PRD at `prd.txt`); the two initiatives are independent and can ship in parallel.
+- Do NOT create a new Jira project; the `OP` project (name: `opensubagents`) already exists and is the canonical home for all 7 workstreams' epics.
 
 ## Target Audience
 
-- **Primary user:** the operator (single human-in-the-loop owner; gh user `zhoukalex`).
+- **Primary user:** the operator (single human-in-the-loop owner; gh user `zhoukalex`; Atlassian identity `alex@jadecli.com` / Alex Zhouk).
 - **Secondary users:** Claude Code sessions consuming PRDs + tasks via MCP.
 - **Tertiary users:** engineering ICs consuming the GitHub Projects board + Jira.
 - **Indirect users:** the `marketing-agent` (an AgentDefinition, not a person) consuming the promo-credits playbook.
@@ -60,10 +61,10 @@ This PRD does NOT create new repos. Every workstream fits one of the 20 existing
 - `.taskmaster/` directory present in `.github` with this master PRD + 7 workstream PRDs
 - Task Master MCP installed in org-wide `.mcp.json` with `TASK_MASTER_TOOLS="standard"` (15 tools, ~10K tokens)
 - Claude Code provider configured (`claude-code/opus` main + `claude-code/sonnet` research/fallback)
-- Atlassian Rovo MCP enabled; Jira project `OSA` created with epics `OSA-WS1` through `OSA-WS7`
+- Atlassian Rovo MCP enabled; Jira project `OP` (name: `opensubagents`) already exists — use as PM substrate with epics `OP-WS1` through `OP-WS7` (project pre-existed the ADR; ADR 0006 is therefore Accepted (retroactive))
 - GitHub Project v2 `opensubagents-ai-2026Q3` with columns, custom fields, and automation
-- `infra/scripts/tm-jira-sync.ts` sync worker mapping Task Master JSON → Jira via Rovo MCP
-- ADR 0006 (Atlassian as PM substrate) accepted before Rovo MCP writes any data
+- `infra/scripts/tm-jira-sync.ts` sync worker mapping Task Master JSON → Jira via Rovo MCP, targeting project key `OP`
+- Atlassian site: `https://subagentceo.atlassian.net`, cloudId `f1f7feaa-cbaa-4323-95e3-4ee03f3f172c`
 
 ### F2. Research-agent adoption (WS2, ORES1)
 
@@ -77,7 +78,7 @@ This PRD does NOT create new repos. Every workstream fits one of the 20 existing
 - Vendor `anthropics/claude-agent-sdk-demos/email-agent` as a TypeScript subtree at `agents-orchestrator/examples/email-agent/`
 - Author `agents-orchestrator/agents/marketing.agent.json` (AgentDefinition spec)
 - Author `playbooks/routines/promo-credits.md` enumerating every target program with eligibility + URL + estimated value
-- Configure the upstream's IMAP for Gmail (X-GM-RAW search syntax)
+- Use Gmail MCP directly (now available in operator's session) rather than IMAP from the vendored upstream — Gmail labels for triage: `OSA/promo-credits`, `OSA/anthropic-startups`, `OSA/aws`, `OSA/azure`, `OSA/gcp`, `OSA/cloudflare`, `OSA/mongodb`, `OSA/twilio`, `OSA/sendgrid`, `OSA/stripe-atlas`
 - Critical safety constraint: every email is `create_draft`, never `send`. Human-approve before send.
 - SQLite `application_status` schema for tracking submissions
 - Target stack of $100K+ across Anthropic Startups ($25K), AWS Activate ($1K–$100K), Microsoft Founders Hub ($1K–$150K), GCP Start/Scale/AI Track ($2K–$350K), Cloudflare ($5K–$250K), MongoDB ($5K), Twilio Searchlight ($7.5K–$12.5K), Stripe Atlas/AWS ($5K bundled), SendGrid ($5K)
@@ -108,6 +109,7 @@ This PRD does NOT create new repos. Every workstream fits one of the 20 existing
 - Baseline queries for the 4 documented datasets: `httpRequests1mGroups`, `httpRequests1hGroups`, `firewallEventsAdaptiveGroups`, `httpRequests` (raw, for bot vs human via `trustedClientCategory`)
 - Pipe results into `trace-collector` (WS5 dependency)
 - Anomaly alerts (bot surge, 5xx rate spike) wired through the existing `mcp-monitoring` alert path
+- Cloudflare account context: zhouk.alex account ID `b19de36640f40fbd69687fcd3239ca75` (note: R2 must be enabled via dashboard before WS3/WS5 R2 usage — currently disabled per 2026-05-24 probe)
 
 ### F7. Two-domain Cloudflare setup (WS7, ODOM1)
 
@@ -128,17 +130,17 @@ As the operator, I want to run `task-master parse-prd` on each workstream PRD so
 
 **Acceptance:** all 7 workstream PRDs are parsed; each emits a populated `.taskmaster/tasks/tasks.json` per tag; `task-master list --tag=<workstream>` shows tasks for each.
 
-### ST-102: Operator (or desktop-agent) mirrors tasks to Jira
+### ST-102: Operator (or desktop-agent) mirrors tasks to Jira `OP`
 
-As the operator or desktop-agent, I want every Task Master task to have a corresponding Jira story so that the team can see the work in Jira.
+As the operator or desktop-agent, I want every Task Master task to have a corresponding Jira story in project `OP` so that the team can see the work in Jira.
 
-**Acceptance:** `infra/scripts/tm-jira-sync.ts` runs on `.taskmaster/tasks/**` changes; every task has a populated `jira_key` field within 60s of creation; drift between Task Master `status` and Jira `status` is ≤ 5 minutes.
+**Acceptance:** `infra/scripts/tm-jira-sync.ts` runs on `.taskmaster/tasks/**` changes; every task has a populated `jira_key` field (format `OP-NNNN`) within 60s of creation; drift between Task Master `status` and Jira `status` is ≤ 5 minutes.
 
 ### ST-103: Operator submits Anthropic Startups credit application
 
 As the operator, I want a drafted Anthropic Startups application via the email-agent so that I can review and send it.
 
-**Acceptance:** `marketing-agent` produces a draft in Gmail Drafts with subject, recipient, and body; SQLite `application_status` row exists with status `drafted`; operator reviews and either approves (status → `sent`) or rejects (status → `rejected`).
+**Acceptance:** `marketing-agent` produces a draft in Gmail Drafts with subject, recipient, and body; the draft is labeled `OSA/anthropic-startups`; SQLite `application_status` row exists with status `drafted`; operator reviews and either approves (status → `sent`) or rejects (status → `rejected`).
 
 ### ST-104: A WS5 PR introducing DragonflyDB cannot merge without dragonfly_compat.test.ts passing
 
@@ -173,7 +175,7 @@ As the operator, I want PRs that introduce non-whitelist vendors to be blocked u
 
 - **Marketing site (opensubagents.com):** static HTML/CSS baseline via Cloudflare Pages; design system mirrors the `anthropics/knowledge-work-plugins/design` plugin's structure (7 skills); brand baseline pulled from `agentknowledgeworkers.com` via headless browser (Playwright or Cloudflare Browser Rendering MCP) once.
 - **Developer surface (outcomesdk.com):** docs site via Cloudflare Pages by default; Mintlify only with ADR 0010.
-- **PM dashboards:** GitHub Project v2 board `opensubagents-ai-2026Q3` (primary); Jira `OSA` dashboards (secondary).
+- **PM dashboards:** GitHub Project v2 board `opensubagents-ai-2026Q3` (primary); Jira project `OP` dashboards (secondary).
 - **No custom CMS:** prose lives in markdown in repos; the design renderer compiles markdown to brand-consistent HTML.
 
 ## Cross-cutting infra
@@ -207,7 +209,7 @@ WS3 ──────► [budget for WS5 + WS7] (credits fund infrastructure)
 ## Milestones
 
 - **M1:** All 7 PRDs in `.taskmaster/docs/` and `parse-prd` run successfully
-- **M2:** Jira epics + GitHub Project board live with all 7 workstreams represented
+- **M2:** Jira epics in project `OP` + GitHub Project board live with all 7 workstreams represented
 - **M3:** ADRs 0003 (AlloyDB), 0004 (domain-split), 0005 (Docker Business), 0006 (Atlassian), 0007 (Anthropic), 0008 (email provider) merged
 - **M4:** First credit approved (typically Anthropic Startups $25K, lowest-friction)
 - **M5:** Data plane green; CF GraphQL feeding `trace-collector`
