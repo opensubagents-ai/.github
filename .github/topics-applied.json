@@ -1,0 +1,12 @@
+{
+  "declared_at": "2026-05-25T06:27:56Z",
+  "declared_by": "admin-jadecli",
+  "note": "Canonical topic declaration committed by org Owner. Sets the contract for what the live GitHub topics field MUST equal; live mutation pending admin-scope credential. See playbooks/topics-sync.md.",
+  "repo": "opensubagents-ai/.github",
+  "source_of_truth": "opensubagents-ai/infra/mcp-config/canonical-topics.json@485b57f",
+  "topics": [
+    "claude-code",
+    "opensubagents-ai",
+    "org-profile"
+  ]
+}
